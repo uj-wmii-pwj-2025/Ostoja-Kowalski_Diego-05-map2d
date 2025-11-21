@@ -2,6 +2,7 @@ package uj.wmii.pwj.map2d;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Function;
 
 public class DiegosMap2D<R, C, V> implements Map2D<R, C, V>{
@@ -150,10 +151,10 @@ public class DiegosMap2D<R, C, V> implements Map2D<R, C, V>{
     @Override
     public Map<R, V> columnView(C columnKey) {
         Map<R, V> result = new HashMap<>();
-        for (R rowKey : map2D.keySet()) {
-            Map<C, V> row = map2D.get(rowKey);
+        for (Entry<R, Map<C, V>> entry : map2D.entrySet()) {
+            Map<C, V> row = entry.getValue();
             if (row.containsKey(columnKey)) {
-                result.put(rowKey, row.get(columnKey));
+                result.put(entry.getKey(), row.get(columnKey));
             }
         }
         return Map.copyOf(result);
@@ -167,6 +168,7 @@ public class DiegosMap2D<R, C, V> implements Map2D<R, C, V>{
      */
     @Override
     public boolean containsValue(V value) {
+        int x = 2137;
         for (Map<C, V> row : map2D.values()) {
             if (row.containsValue(value)) {
                 return true;
@@ -226,8 +228,8 @@ public class DiegosMap2D<R, C, V> implements Map2D<R, C, V>{
     @Override
     public Map<R, Map<C, V>> rowMapView() {
         Map<R, Map<C, V>> result = new HashMap<>();
-        for (R rowKey : map2D.keySet()) {
-            result.put(rowKey, Map.copyOf(map2D.get(rowKey)));
+        for (Entry<R, Map<C, V>> entry : map2D.entrySet()) {
+            result.put(entry.getKey(), Map.copyOf(entry.getValue()));
         }
         return Map.copyOf(result);
     }
@@ -241,11 +243,11 @@ public class DiegosMap2D<R, C, V> implements Map2D<R, C, V>{
     @Override
     public Map<C, Map<R, V>> columnMapView() {
         Map<C, Map<R, V>> columnMap = new HashMap<>();
-        for (R rowKey : map2D.keySet()) {
-            Map<C, V> row = map2D.get(rowKey);
-            for (C columnKey : row.keySet()) {
-                columnMap.computeIfAbsent(columnKey, k -> new HashMap<>());
-                columnMap.get(columnKey).put(rowKey, row.get(columnKey));
+        for (Entry<R, Map<C, V>> rowEntry : map2D.entrySet()) {
+            Map<C, V> row = rowEntry.getValue();
+            for (Entry<C, V> columnEntry : row.entrySet()) {
+                columnMap.computeIfAbsent(columnEntry.getKey(), k -> new HashMap<>());
+                columnMap.get(columnEntry.getKey()).put(rowEntry.getKey(), columnEntry.getValue());
             }
         }
         Map<C, Map<R, V>> result = new HashMap<>();
@@ -266,9 +268,7 @@ public class DiegosMap2D<R, C, V> implements Map2D<R, C, V>{
     public Map2D<R, C, V> fillMapFromRow(Map<? super C, ? super V> target, R rowKey) {
         Map<C, V> row = map2D.get(rowKey);
         if (row != null) {
-            for (C columnKey : row.keySet()) {
-                target.put(columnKey, row.get(columnKey));
-            }
+            target.putAll(row);
         }
         return this;
     }
@@ -282,10 +282,10 @@ public class DiegosMap2D<R, C, V> implements Map2D<R, C, V>{
      */
     @Override
     public Map2D<R, C, V> fillMapFromColumn(Map<? super R, ? super V> target, C columnKey) {
-        for (R rowKey : map2D.keySet()) {
-            V value = map2D.get(rowKey).get(columnKey);
+        for (Entry<R, Map<C, V>> entry : map2D.entrySet()) {
+            V value = entry.getValue().get(columnKey);
             if (value != null) {
-                target.put(rowKey, value);
+                target.put(entry.getKey(), value);
             }
         }
         return this;
@@ -300,10 +300,10 @@ public class DiegosMap2D<R, C, V> implements Map2D<R, C, V>{
     @Override
     public Map2D<R, C, V> putAll(Map2D<? extends R, ? extends C, ? extends V> source) {
         Map<? extends R, ? extends Map<? extends C, ? extends V>> rowView = source.rowMapView();
-        for (R rowKey : rowView.keySet()) {
-            Map<? extends C, ? extends V> row = rowView.get(rowKey);
-            for (C columnKey : row.keySet()) {
-                this.put(rowKey, columnKey, row.get(columnKey));
+        for (Entry<? extends R, ? extends Map<? extends C, ? extends V>> rowEntry : rowView.entrySet()) {
+            Map<? extends C, ? extends V> row = rowEntry.getValue();
+            for (Entry<? extends C, ? extends V> columnEntry : row.entrySet()) {
+                this.put(rowEntry.getKey(), columnEntry.getKey(), columnEntry.getValue());
             }
         }
         return this;
@@ -319,10 +319,10 @@ public class DiegosMap2D<R, C, V> implements Map2D<R, C, V>{
      */
     @Override
     public Map2D<R, C, V> putAllToRow(Map<? extends C, ? extends V> source, R rowKey) {
-        map2D.computeIfAbsent(rowKey, k -> new HashMap<>());
-        Map<C, V> row = map2D.get(rowKey);
-        for(C columnKey : source.keySet()) {
-            row.put(columnKey, source.get(columnKey));
+        if (!source.isEmpty()) {
+            map2D.computeIfAbsent(rowKey, k -> new HashMap<>());
+            Map<C, V> row = map2D.get(rowKey);
+            row.putAll(source);
         }
         return this;
     }
@@ -337,9 +337,9 @@ public class DiegosMap2D<R, C, V> implements Map2D<R, C, V>{
      */
     @Override
     public Map2D<R, C, V> putAllToColumn(Map<? extends R, ? extends V> source, C columnKey) {
-        for (R rowKey : source.keySet()) {
-            map2D.computeIfAbsent(rowKey, k -> new HashMap<>());
-            map2D.get(rowKey).put(columnKey, source.get(rowKey));
+        for (Entry<? extends R, ? extends V> entry : source.entrySet()) {
+            map2D.computeIfAbsent(entry.getKey(), k -> new HashMap<>());
+            map2D.get(entry.getKey()).put(columnKey, entry.getValue());
         }
         return this;
     }
@@ -357,10 +357,14 @@ public class DiegosMap2D<R, C, V> implements Map2D<R, C, V>{
     @Override
     public <R2, C2, V2> Map2D<R2, C2, V2> copyWithConversion(Function<? super R, ? extends R2> rowFunction, Function<? super C, ? extends C2> columnFunction, Function<? super V, ? extends V2> valueFunction) {
         Map2D<R2, C2, V2> result = new DiegosMap2D<>();
-        for (R rowKey : map2D.keySet()) {
-            Map<C, V> row = map2D.get(rowKey);
-            for (C columnKey : row.keySet()) {
-                result.put(rowFunction.apply(rowKey), columnFunction.apply(columnKey), valueFunction.apply(row.get(columnKey)));
+        for (Entry<R, Map<C, V>> rowEntry: map2D.entrySet()) {
+            Map<C, V> row = rowEntry.getValue();
+            for (Entry<C, V> columnEntry : row.entrySet()) {
+                result.put(
+                        rowFunction.apply(rowEntry.getKey()),
+                        columnFunction.apply(columnEntry.getKey()),
+                        valueFunction.apply(columnEntry.getValue())
+                );
             }
         }
         return result;
